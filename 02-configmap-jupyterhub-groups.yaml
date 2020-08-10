@@ -1,0 +1,24 @@
+﻿kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: jupyterhub-groups
+  namespace: production
+data:
+  private_notebook_users: |
+    [ 'opentlc-mgr']
+  admins: |
+    [ 'opentlc-mgr']
+  ccso_users: |
+    [ 'opentlc-mgr']
+  projects-thp: |
+    [ 'opentlc-mgr']
+  private_users: |
+    [ 'opentlc-mgr']
+  projects-pearl: |
+    [ 'opentlc-mgr']
+  projects-analytics: |
+    [ 'opentlc-mgr']
+  iphis_users: |
+    [ 'opentlc-mgr']
+  secret_users: |
+    [ 'opentlc-mgr']

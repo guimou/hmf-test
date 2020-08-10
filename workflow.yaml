@@ -1,0 +1,253 @@
+metadata:
+  name: public-ontario-gov-minute-1
+  namespace: production
+spec:
+  workflowSpec:
+    templates:
+      - name: hmf-backend
+        arguments: {}
+        inputs:
+          parameters:
+            - name: message
+        outputs: {}
+        metadata: {}
+        container:
+          name: ''
+          image: >-
+            image-registry.openshift-image-registry.svc:5000/production/hmf-backend
+          args:
+            - /bin/sh
+            - '-c'
+            - '{{inputs.parameters.message}}'
+          env:
+            - name: FLASK_APP
+              valueFrom:
+                secretKeyRef:
+                  name: backend-proddb-secret
+                  key: FLASK_APP
+            - name: FLASK_CONFIG
+              valueFrom:
+                secretKeyRef:
+                  name: backend-proddb-secret
+                  key: FLASK_CONFIG
+            - name: KAGGLE_CONFIG_DIR
+              valueFrom:
+                secretKeyRef:
+                  name: backend-proddb-secret
+                  key: KAGGLE_CONFIG_DIR
+            - name: auth_provider_x509_cert_url
+              valueFrom:
+                secretKeyRef:
+                  name: backend-proddb-secret
+                  key: auth_provider_x509_cert_url
+            - name: auth_uri
+              valueFrom:
+                secretKeyRef:
+                  name: backend-proddb-secret
+                  key: auth_uri
+            - name: private_key
+              valueFrom:
+                secretKeyRef:
+                  name: backend-proddb-secret
+                  key: private_key
+            - name: private_key_id
+              valueFrom:
+                secretKeyRef:
+                  name: backend-proddb-secret
+                  key: private_key_id
+            - name: KAGGLE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: backend-proddb-secret
+                  key: KAGGLE_KEY
+            - name: type
+              valueFrom:
+                secretKeyRef:
+                  name: backend-proddb-secret
+                  key: type
+            - name: KAGGLE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: backend-proddb-secret
+                  key: KAGGLE_USERNAME
+            - name: client_id
+              valueFrom:
+                secretKeyRef:
+                  name: backend-proddb-secret
+                  key: client_id
+            - name: client_x509_cert_url
+              valueFrom:
+                secretKeyRef:
+                  name: backend-proddb-secret
+                  key: client_x509_cert_url
+            - name: token_uri
+              valueFrom:
+                secretKeyRef:
+                  name: backend-proddb-secret
+                  key: token_uri
+            - name: client_email
+              valueFrom:
+                secretKeyRef:
+                  name: backend-proddb-secret
+                  key: client_email
+            - name: project_id
+              valueFrom:
+                secretKeyRef:
+                  name: backend-proddb-secret
+                  key: project_id
+            - name: USERNAME_211
+              valueFrom:
+                secretKeyRef:
+                  name: backend-proddb-secret
+                  key: USERNAME_211
+            - name: PASSWORD_211
+              valueFrom:
+                secretKeyRef:
+                  name: backend-proddb-secret
+                  key: PASSWORD_211
+          resources: {}
+          volumeMounts:
+            - name: hmf-data-confidential
+              mountPath: /opt/app-root/app/data/confidential
+            - name: hmf-data-public
+              mountPath: /opt/app-root/app/data/public
+            - name: hmf-data-restricted-raw-ccso
+              mountPath: /opt/app-root/app/data/restricted/raw/ccso
+            - name: hmf-data-restricted-processed-ccso
+              mountPath: /opt/app-root/app/data/restricted/processed/ccso
+            - name: hmf-data-restricted-raw-moh
+              mountPath: /opt/app-root/app/data/restricted/raw/moh
+            - name: hmf-data-restricted-processed-moh
+              mountPath: /opt/app-root/app/data/restricted/processed/moh
+      - name: public-ontario-gov
+        arguments: {}
+        inputs: {}
+        outputs: {}
+        metadata: {}
+        dag:
+          tasks:
+            - name: get-cases
+              template: hmf-backend
+              arguments:
+                parameters:
+                  - name: message
+                    value: flask data_in public_ontario_gov_conposcovidloc
+            - name: process-cases
+              template: hmf-backend
+              arguments:
+                parameters:
+                  - name: message
+                    value: flask data_process public_ontario_gov_conposcovidloc
+              dependencies:
+                - get-cases
+            - name: transform-cases
+              template: hmf-backend
+              arguments:
+                parameters:
+                  - name: message
+                    value: >-
+                      flask data_transform
+                      public_cases_ontario_confirmed_positive_cases
+              dependencies:
+                - process-cases
+            - name: weekly-new-cases
+              template: hmf-backend
+              arguments:
+                parameters:
+                  - name: message
+                    value: >-
+                      flask data_transform
+                      public_cases_ontario_phu_weekly_new_cases
+              dependencies:
+                - transform-cases
+            - name: testing-24-hours
+              template: hmf-backend
+              arguments:
+                parameters:
+                  - name: message
+                    value: >-
+                      flask data_transform
+                      public_capacity_ontario_testing_24_hours
+              dependencies:
+                - transform-cases
+            - name: get-aggregate
+              template: hmf-backend
+              arguments:
+                parameters:
+                  - name: message
+                    value: flask data_in public_ontario_gov_covidtesting
+            - name: process-aggregate
+              template: hmf-backend
+              arguments:
+                parameters:
+                  - name: message
+                    value: flask data_process public_ontario_gov_covidtesting
+              dependencies:
+                - get-cases
+            - name: get-website
+              template: hmf-backend
+              arguments:
+                parameters:
+                  - name: message
+                    value: flask data_in public_ontario_gov_website
+            - name: process-long-term-care
+              template: hmf-backend
+              arguments:
+                parameters:
+                  - name: message
+                    value: >-
+                      flask data_process
+                      public_ontario_gov_longtermcare_in_outbreak
+              dependencies:
+                - get-website
+            - name: process-long-term-care-summary
+              template: hmf-backend
+              arguments:
+                parameters:
+                  - name: message
+                    value: flask data_process public_ontario_gov_longtermcare_summary
+              dependencies:
+                - get-website
+            - name: process-long-term-care-outbreak
+              template: hmf-backend
+              arguments:
+                parameters:
+                  - name: message
+                    value: >-
+                      flask data_process
+                      public_ontario_gov_longtermcare_in_outbreak
+              dependencies:
+                - get-website
+            - name: process-long-term-care-no-longer-outbreak
+              template: hmf-backend
+              arguments:
+                parameters:
+                  - name: message
+                    value: >-
+                      flask data_process
+                      public_ontario_gov_longtermcare_no_longer_in_outbreak
+              dependencies:
+                - get-website
+    entrypoint: public-ontario-gov
+    arguments: {}
+    serviceAccountName: argo-workflow
+    volumes:
+      - name: hmf-data-public
+        persistentVolumeClaim:
+          claimName: hmf-data-public
+      - name: hmf-data-confidential
+        persistentVolumeClaim:
+          claimName: hmf-data-confidential
+      - name: hmf-data-restricted-raw-moh
+        persistentVolumeClaim:
+          claimName: hmf-data-restricted-raw-moh
+      - name: hmf-data-restricted-processed-moh
+        persistentVolumeClaim:
+          claimName: hmf-data-restricted-processed-moh
+      - name: hmf-data-restricted-raw-ccso
+        persistentVolumeClaim:
+          claimName: hmf-data-restricted-raw-ccso
+      - name: hmf-data-restricted-processed-ccso
+        persistentVolumeClaim:
+          claimName: hmf-data-restricted-processed-ccso
+  schedule: '1-59/5 * * * *' 
